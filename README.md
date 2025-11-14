@@ -1,4 +1,3 @@
-docker-compose up -d
 # SIEM Homelab with Elastic Stack
 
 This repository contains a small, self-contained SIEM homelab designed for security analysis and log monitoring practice.
