@@ -1,0 +1,33 @@
+filebeat.inputs:
+  # Authentication logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/auth.log
+    fields:
+      log_type: auth
+    fields_under_root: true
+
+  # System log
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/syslog
+    fields:
+      log_type: syslog
+    fields_under_root: true
+
+processors:
+  - add_host_metadata: {}
+  - add_cloud_metadata: {}
+  - add_docker_metadata: {}
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  index: "endpoint1-%{+yyyy.MM.dd}"
+
+setup.template.enabled: true
+setup.ilm.enabled: false
+
+setup.kibana:
+  host: "http://kibana:5601"
