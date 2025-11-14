@@ -1,3 +1,4 @@
+docker-compose up -d
 # SIEM Homelab with Elastic Stack
 
 This repository contains a small, self-contained SIEM homelab designed for security analysis and log monitoring practice.
@@ -9,164 +10,149 @@ The environment is built using Docker Compose and includes:
 - Kibana for dashboards and investigations
 - An attacker container used to simulate SSH brute force attempts and other activities
 
-The goal of this lab is to replicate a simplified version of a real log ingestion pipeline and provide a practical environment for experimenting with detection, log analysis, and incident investigation workflows.
+The lab reproduces a simplified log ingestion pipeline to experiment with detection, log analysis, and incident investigation workflows.
 
 ---
 
-## 1. Overview
+## Overview
 
-This setup is intentionally minimalistic. It focuses only on the essentials needed to demonstrate how endpoint logs travel through a log forwarder and into a SIEM for analysis.
-No complex orchestration, external dependencies, or unnecessary components.
+This setup is intentionally minimal. It focuses on the essential flow: endpoint → forwarder → SIEM.
 
-Typical workflow:
+Typical flow:
 
-1. The Linux endpoint writes events to /var/log/auth.log
-2. Filebeat monitors the log file and forwards new entries to Elasticsearch
+1. Endpoint writes events to `/var/log/auth.log`
+2. Filebeat monitors the log file and forwards entries to Elasticsearch
 3. Elasticsearch indexes the events
 4. Kibana provides a UI to query and visualize the data
-5. The attacker container can generate activity such as failed SSH logins to populate meaningful logs
-
-This architecture mirrors what is commonly found in enterprise environments, just scaled down.
+5. Attacker container generates activity (e.g., failed SSH logins) to populate logs
 
 ---
 
-## 2. Architecture Diagram
+## Architecture
 
-+----------------+        +-------------------+        +----------------+
-|   Attacker     | -----> |    Endpoint        | -----> |    Filebeat    |
-| (SSH Brute)    |        | (SSH + Auth Logs)  |        |  (Log Forward) |
-+----------------+        +-------------------+        +--------+-------+
-                                                                  |
-                                                                  v
-                                                        +------------------+
-                                                        |  Elasticsearch   |
-                                                        |  (Log Storage)   |
-                                                        +--------+---------+
-                                                                  |
-                                                                  v
-                                                        +------------------+
-                                                        |     Kibana       |
-                                                        | (UI for Analysis)|
-                                                        +------------------+
+```mermaid
+flowchart LR
+
+  %% Layout & styles
+  classDef infra fill:#f3f4f6,stroke:#333,stroke-width:1px;
+
+  %% Groups / subgraphs
+  subgraph Attacker ["Attacker"]
+    A[Attacker Kali]
+  end
+
+  subgraph Monitored ["Monitored Endpoint"]
+    E[Endpoint Ubuntu]
+  end
+
+  subgraph Forwarder ["Log Forwarder"]
+    F[Filebeat]
+  end
+
+  subgraph Storage ["SIEM / Storage"]
+    ES[Elasticsearch]
+    K[Kibana]
+  end
+
+  %% Flows
+  A -->|SSH brute-force / scans| E
+  E -->|writes /var/log/auth.log| F
+  F -->|forwards events| ES
+  ES -->|queries / dashboards| K
+  E --- F
+
+  %% Apply style to nodes
+  class A,E,F,ES,K infra;
+  ```
+---
+
+## Components
+
+**Elasticsearch & Kibana:** Elastic Stack acts as the SIEM backend. Containers expose:
+
+- Elasticsearch: `http://localhost:9200`
+- Kibana: `http://localhost:5601`
+
+Security features are disabled by default for simplicity — do not use this configuration in production.
+
+**Endpoint:** Lightweight Ubuntu-based container with:
+
+- SSH enabled
+- Demo user to exercise authentication
+- Rsyslog/syslog to write authentication logs to a shared volume
+
+**Filebeat:** Reads logs from the endpoint via a shared volume and forwards to Elasticsearch.
+
+**Attacker:** Kali container used to generate test events (hydra, ssh, nmap).
 
 ---
 
-## 3. Components
+## Quickstart
 
-### Elasticsearch & Kibana
-Elastic Stack is used as the SIEM backend.
-Both services run as containers and are reachable locally on the following ports:
+Clone and start the lab:
 
-- Elasticsearch: http://localhost:9200
-- Kibana: http://localhost:5601
-
-Security features are disabled for simplicity.
-
----
-
-### Endpoint
-A lightweight Ubuntu-based container configured with:
-
-- SSH service enabled
-- A demo user for authentication attempts
-- Rsyslog writing authentication logs to a mounted directory
-
-This represents a monitored server in a real environment.
-
----
-
-### Filebeat
-Filebeat runs as a separate container and reads logs from the endpoint via a shared volume.
-
-It forwards events to Elasticsearch in near real-time.
-
----
-
-### Attacker
-A Kali-based container used only to generate test data.
-Contains tools like:
-
-- Hydra
-- SSH client
-- Nmap
-
-Example brute force command:
-
-hydra -l demo -P /usr/share/wordlists/rockyou.txt ssh://endpoint1
-
----
-
-## 4. Running the Lab
-
-Clone the repository and run:
-
+```bash
+git clone <repo-url>
+cd SIEM-Homelab
 docker-compose build
 docker-compose up -d
+```
 
-Verify everything is running:
+Check containers:
 
+```bash
 docker ps
+```
 
-Access Kibana:
-
-http://localhost:5601
-
-If this is your first run, create a data view pointing to:
-
-filebeat-*
-
-Kibana → Stack Management → Index Patterns → Create.
+Open Kibana: `http://localhost:5601` and create a data view for `filebeat-*` if prompted.
 
 ---
 
-## 5. Testing & Generating Logs
+## Generating Logs / Tests
 
 Enter the attacker container:
 
+```bash
 docker exec -it attacker bash
+```
 
-Basic connection test:
+Connection test and simple SSH:
 
+```bash
 ssh demo@endpoint1
+```
 
-Brute force attempts:
+Example brute force (for testing only):
 
+```bash
 hydra -l demo -P /usr/share/wordlists/rockyou.txt ssh://endpoint1
-
-Port scan:
-
 nmap -sV endpoint1
+```
 
-All these actions will produce events visible in Kibana’s Discover tab.
-
----
-
-## 6. What You Can Practice
-
-- SSH brute force detection patterns
-- Event correlation
-- Creating dashboards
-- Basic threat hunting
-- Writing simple detections in Kibana
-- Understanding endpoint → forwarder → SIEM flow
-
-This environment is intentionally small so you can focus on log behavior rather than infrastructure.
+These actions generate authentication events visible in Kibana → Discover.
 
 ---
 
-## 7. Future Improvements
+## What You Can Practice
 
-Some extensions planned:
+- Detecting SSH brute force patterns
+- Event correlation and pivoting
+- Building dashboards and visualizations
+- Basic threat hunting in Kibana
+
+---
+
+## Future Improvements
 
 - Add Winlogbeat + Windows endpoint
-- Suricata network traffic monitoring
-- Wazuh manager side-by-side with Elastic
-- Prebuilt Kibana dashboards
-- Automated attack sequences
+- Add Suricata for network traffic monitoring
+- Integrate Wazuh manager or other EDR telemetry
+- Prebuilt Kibana dashboards and detection rules
 
 ---
 
-## 8. License
+## License
 
 This project is provided for educational and research purposes.
+
 
