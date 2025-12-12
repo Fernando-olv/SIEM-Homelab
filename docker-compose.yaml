@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.0
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
+  endpoint1:
+    build: ./endpoint1
+    container_name: endpoint1
+    hostname: endpoint1
+    depends_on:
+      - elasticsearch
+
+  attacker:
+    build: ./attacker
+    container_name: attacker
+    hostname: attacker
+    depends_on:
+      - endpoint1
+
+volumes:
+  es-data:
